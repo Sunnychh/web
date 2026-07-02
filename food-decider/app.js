@@ -1964,6 +1964,16 @@ function getAreaCandidates(data = restaurants, areaQuery = "", limit = 20) {
   return matches.slice(0, limit);
 }
 
+function rankRestaurants(data = []) {
+  return data.slice().sort((a, b) => a.rank - b.rank || b.score - a.score || a.price - b.price);
+}
+
+function uniqueRestaurants(data = []) {
+  return data.filter((restaurant, index, list) => {
+    return list.findIndex((item) => item.id === restaurant.id) === index;
+  });
+}
+
 function distanceKm(a, b) {
   const earthRadiusKm = 6371;
   const lat1 = (a.latitude * Math.PI) / 180;
@@ -1985,16 +1995,37 @@ function findNearestArea(coords, profiles = areaProfiles) {
     .sort((a, b) => a.distanceKm - b.distanceKm)[0];
 }
 
+function getScopedRestaurants(data = restaurants, scope = { type: "all" }) {
+  if (!scope || scope.type === "all") {
+    return rankRestaurants(data);
+  }
+
+  if (scope.type === "area") {
+    const query = normalizeText(scope.query);
+    if (!query) return rankRestaurants(data);
+    const profile = areaProfiles.find((area) => area.label === query || area.keywords.includes(query));
+    const keywords = profile ? profile.keywords : [query];
+    return rankRestaurants(uniqueRestaurants(keywords.flatMap((keyword) => filterRestaurants(data, { area: keyword }))));
+  }
+
+  if (scope.type === "location") {
+    const nearest = findNearestArea(scope.coords);
+    if (nearest.distanceKm > LOCATION_MAX_RADIUS_KM) {
+      return [];
+    }
+    return rankRestaurants(uniqueRestaurants(nearest.keywords.flatMap((keyword) => filterRestaurants(data, { area: keyword }))));
+  }
+
+  return rankRestaurants(data);
+}
+
 function getLocationCandidates(data = restaurants, coords, limit = 20) {
   const nearest = findNearestArea(coords);
   if (nearest.distanceKm > LOCATION_MAX_RADIUS_KM) {
     return [];
   }
 
-  const matches = nearest.keywords
-    .flatMap((keyword) => filterRestaurants(data, { area: keyword }))
-    .filter((restaurant, index, list) => list.findIndex((item) => item.id === restaurant.id) === index)
-    .sort((a, b) => a.rank - b.rank || b.score - a.score || a.price - b.price);
+  const matches = getScopedRestaurants(data, { type: "location", coords });
   return matches.slice(0, limit);
 }
 
@@ -2166,6 +2197,8 @@ function initApp() {
     type: null,
     allRestaurants,
     customRestaurants,
+    scope: { type: "all", label: "全地图" },
+    scopedRestaurants: allRestaurants,
     candidates: getInitialCandidates(allRestaurants),
     passed: [],
     spinning: false,
@@ -2181,13 +2214,38 @@ function initApp() {
     if (mode === "wheel") drawWheel();
   }
 
+  function getDefaultCandidatesForCurrentScope() {
+    const initial = getInitialCandidates(state.scopedRestaurants);
+    return (initial.length ? initial : state.scopedRestaurants).slice(0, 24);
+  }
+
+  function syncScopedRestaurants() {
+    state.scopedRestaurants = getScopedRestaurants(state.allRestaurants, state.scope);
+    if (state.category && !state.scopedRestaurants.some((restaurant) => restaurant.category === state.category)) {
+      state.category = null;
+      state.type = null;
+    }
+    if (state.type && !state.scopedRestaurants.some((restaurant) => restaurant.category === state.category && restaurant.type === state.type)) {
+      state.type = null;
+    }
+  }
+
+  function resetWheelForScope(candidates = getDefaultCandidatesForCurrentScope()) {
+    state.candidates = candidates.slice(0, 24);
+    state.passed = [];
+    state.winner = null;
+    state.rotation = 0;
+  }
+
   function renderCategories() {
-    categoryGrid.innerHTML = getCategories(state.allRestaurants).map((category) => `
+    const categories = getCategories(state.scopedRestaurants);
+    categoryGrid.innerHTML = categories.length ? categories.map((category) => `
       <button class="choice-card ${state.category === category.id ? "selected" : ""}" data-category="${category.id}" style="--accent:${category.color}">
         ${iconSvg(category.icon)}
         <span>${category.label}</span>
-        <small>${filterRestaurants(state.allRestaurants, { category: category.id }).length} 个据点</small>
-      </button>`).join("");
+        <small>${filterRestaurants(state.scopedRestaurants, { category: category.id }).length} 个据点</small>
+      </button>`).join("")
+      : `<div class="empty-state">${iconSvg("map")}<span>这个位置还没有候选，换个商圈或自己加一家。</span></div>`;
   }
 
   function renderTypes() {
@@ -2195,16 +2253,16 @@ function initApp() {
       typeGrid.innerHTML = `<div class="empty-state">${iconSvg("pointer")}<span>先选一个大方向，食物雷达才会开始锁定。</span></div>`;
       return;
     }
-    typeGrid.innerHTML = getTypesForCategory(state.allRestaurants, state.category).map((type) => `
+    typeGrid.innerHTML = getTypesForCategory(state.scopedRestaurants, state.category).map((type) => `
       <button class="type-pill ${state.type === type ? "selected" : ""}" data-type="${type}">${type}</button>`).join("");
   }
 
   function renderTreeResults() {
-    const matches = filterRestaurants(state.allRestaurants, { category: state.category, type: state.type });
+    const matches = filterRestaurants(state.scopedRestaurants, { category: state.category, type: state.type });
     const hint = state.category
       ? `${getCategoryMeta(state.category).label}${state.type ? ` / ${state.type}` : ""}`
       : "全地图扫描";
-    breadcrumb.textContent = `${hint} · 找到 ${matches.length} 个候选`;
+    breadcrumb.textContent = `${state.scope.label || "全地图"} · ${hint} · 找到 ${matches.length} 个候选`;
     resultList.innerHTML = matches.length
       ? matches.map((restaurant) => createRestaurantCard(restaurant)).join("")
       : `<div class="empty-state">${iconSvg("dice")}<span>这个组合太刁钻了，换个口味继续抓。</span></div>`;
@@ -2424,7 +2482,10 @@ function initApp() {
       state.customRestaurants = mergeRestaurantData([], [custom, ...state.customRestaurants]);
       saveCustomRestaurants(state.customRestaurants);
       state.allRestaurants = mergeRestaurantData(restaurants, state.customRestaurants);
-      state.candidates = [custom, ...removeCandidate(state.candidates, custom.id)].slice(0, 24);
+      syncScopedRestaurants();
+      if (state.scopedRestaurants.some((restaurant) => restaurant.id === custom.id)) {
+        state.candidates = [custom, ...removeCandidate(state.candidates, custom.id)].slice(0, 24);
+      }
       state.passed = removeCandidate(state.passed, custom.id);
       customStatus.textContent = "已加入";
       customForm.reset();
@@ -2435,22 +2496,18 @@ function initApp() {
     }
   });
   resetButton.addEventListener("click", () => {
-    state.candidates = getInitialCandidates(state.allRestaurants);
-    state.passed = [];
-    state.winner = null;
-    state.rotation = 0;
+    resetWheelForScope();
     wheelResult.innerHTML = `<div class="empty-state">${iconSvg("dice")}<span>先 pass 掉不想吃的，再交给命运。</span></div>`;
     renderCandidates();
   });
 
   function refreshCandidatesForArea(areaQuery) {
     const query = normalizeText(areaQuery);
-    const matches = getAreaCandidates(state.allRestaurants, query, 24);
-    state.candidates = matches.length ? matches : getInitialCandidates(state.allRestaurants);
-    state.passed = [];
-    state.winner = null;
-    state.rotation = 0;
-    wheelResult.innerHTML = `<div class="empty-state">${iconSvg("target")}<span>${matches.length ? `已按「${query}」刷新候选。` : "没搜到，先回到默认候选。"}</span></div>`;
+    state.scope = query ? { type: "area", query, label: query } : { type: "all", label: "全地图" };
+    syncScopedRestaurants();
+    resetWheelForScope(query ? state.scopedRestaurants : getDefaultCandidatesForCurrentScope());
+    wheelResult.innerHTML = `<div class="empty-state">${iconSvg("target")}<span>${state.scopedRestaurants.length ? `已按「${query || "全地图"}」刷新两个模式。` : "没搜到，不再塞入其他地区候选。"}</span></div>`;
+    renderTree();
     renderCandidates();
   }
 
@@ -2468,24 +2525,24 @@ function initApp() {
           longitude: position.coords.longitude,
         };
         const nearest = findNearestArea(coords);
-        const matches = getLocationCandidates(state.allRestaurants, coords, 24);
         const distanceText = formatLocationDistance(nearest.distanceKm);
         areaQueryInput.value = nearest.distanceKm <= LOCATION_MAX_RADIUS_KM ? nearest.label : "";
-        state.candidates = matches;
-        state.passed = [];
-        state.winner = null;
-        state.rotation = 0;
+        state.scope = { type: "location", coords, label: nearest.distanceKm <= LOCATION_MAX_RADIUS_KM ? nearest.label : "未覆盖位置" };
+        syncScopedRestaurants();
+        resetWheelForScope(state.scopedRestaurants);
 
         if (nearest.distanceKm > LOCATION_MAX_RADIUS_KM) {
           locationStatus.textContent = `最近覆盖点是「${nearest.label}」，约 ${distanceText}，超过 3km，先不硬塞成都候选。`;
           wheelResult.innerHTML = `<div class="empty-state">${iconSvg("map")}<span>当前位置暂未覆盖，可以手动输入商圈或自己加一家。</span></div>`;
+          renderTree();
           renderCandidates();
           return;
         }
 
         const radiusHint = nearest.distanceKm <= LOCATION_IDEAL_RADIUS_KM ? "1km 内命中" : "3km 覆盖圈内";
-        locationStatus.textContent = `定位到「${nearest.label}」${distanceText}，${radiusHint}，已刷新 ${state.candidates.length} 个候选。`;
-        wheelResult.innerHTML = `<div class="empty-state">${iconSvg("map")}<span>已按当前位置匹配「${nearest.label}」，距离 ${distanceText}。</span></div>`;
+        locationStatus.textContent = `定位到「${nearest.label}」${distanceText}，${radiusHint}，两个模式已限制在附近 ${state.scopedRestaurants.length} 个候选。`;
+        wheelResult.innerHTML = `<div class="empty-state">${iconSvg("map")}<span>已按当前位置匹配「${nearest.label}」，两个模式只看附近餐厅。</span></div>`;
+        renderTree();
         renderCandidates();
       },
       () => {
@@ -2519,6 +2576,7 @@ if (typeof module !== "undefined") {
     getInitialCandidates,
     getAreaCandidates,
     getLocationCandidates,
+    getScopedRestaurants,
     findNearestArea,
     createCustomRestaurant,
     mergeRestaurantData,
