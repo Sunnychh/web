@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>今天吃什么作战室</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="app-shell" data-app>
+    <header class="topbar">
+      <section class="brand-block" aria-label="应用标题">
+        <div class="brand-mark"><span class="local-icon" data-icon="utensils"></span></div>
+        <div>
+          <p class="eyebrow">Huayang → Century City</p>
+          <h1>今天吃什么作战室</h1>
+          <p class="subtitle">把“随便”翻译成一家能出发的店。</p>
+        </div>
+      </section>
+
+      <nav class="mode-switch" aria-label="选择吃法">
+        <button class="active" data-mode="tree"><span class="local-icon" data-icon="route"></span><span>按口味挑</span></button>
+        <button data-mode="wheel"><span class="local-icon" data-icon="wheel"></span><span>转一下定</span></button>
+      </nav>
+    </header>
+
+    <section class="intel-strip" aria-label="数据说明">
+      <div><span class="local-icon" data-icon="map"></span><span>范围：华阳到世纪城、世豪/红唐/远大、港汇/银泰/锦江里/融创，以及重大虎溪菊园、东门、大学城熙街、龙湖U城、尖顶坡</span></div>
+      <div><span class="local-icon" data-icon="ranking"></span><span>内置榜单为本地 seed，按大众点评式热度字段组织；实际出门前建议再查实时排队与营业状态。</span></div>
+    </section>
+
+    <section class="panel tree-panel" data-panel="tree">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow"><span class="local-icon" data-icon="branch"></span>模式一</p>
+          <h2>按口味一路挑到店</h2>
+        </div>
+        <span data-breadcrumb>全地图扫描</span>
+      </div>
+
+      <div class="decision-layout">
+        <aside class="decision-rail" aria-label="决策步骤">
+          <div class="rail-step active"><strong>1</strong><span>选大类</span></div>
+          <div class="rail-step active"><strong>2</strong><span>定类型</span></div>
+          <div class="rail-step active"><strong>3</strong><span>挑据点</span></div>
+        </aside>
+
+        <div class="decision-stage">
+          <section class="chooser-block">
+            <h3><span class="local-icon" data-icon="compass"></span>先定今天的主旋律</h3>
+            <div class="choice-grid" data-category-grid></div>
+          </section>
+
+          <section class="chooser-block compact">
+            <h3><span class="local-icon" data-icon="filter"></span>再收窄到具体打法</h3>
+            <div class="type-grid" data-type-grid></div>
+          </section>
+
+          <section class="chooser-block results-block">
+            <h3><span class="local-icon" data-icon="target"></span>候选餐厅</h3>
+            <div class="result-list" data-tree-results></div>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel wheel-panel" data-panel="wheel" hidden>
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow"><span class="local-icon" data-icon="dice"></span>模式二</p>
+          <h2>让盘子替你拍板</h2>
+        </div>
+        <div class="wheel-actions">
+          <button class="ghost" data-reset><span class="local-icon" data-icon="reset"></span>重置候选</button>
+        </div>
+      </div>
+
+      <div class="wheel-layout">
+        <section class="wheel-stage" aria-label="转一下定吃哪家">
+          <div class="pointer"><span class="local-icon" data-icon="pointer"></span></div>
+          <canvas width="420" height="420" data-wheel></canvas>
+          <button class="spin-button" data-spin><span class="local-icon" data-icon="bolt"></span>开转，别反悔</button>
+          <div class="wheel-result" data-wheel-result>
+            <div class="empty-state"><span class="local-icon" data-icon="dice"></span><span>先 pass 掉不想吃的，再交给命运。</span></div>
+          </div>
+        </section>
+
+        <section class="candidate-board" aria-label="转盘候选">
+          <div class="board-head">
+            <div>
+              <p class="eyebrow">Favorite List</p>
+              <h3>候选席</h3>
+            </div>
+            <span>不想吃就踢掉</span>
+          </div>
+
+          <div class="candidate-tools">
+            <div class="area-refresh">
+              <label for="areaQuery">换个地点</label>
+              <div class="input-row">
+                <input id="areaQuery" data-area-query type="search" placeholder="输入商圈/地铁站/街区">
+                <button class="primary" data-refresh-area type="button"><span class="local-icon" data-icon="target"></span>刷新候选</button>
+                <button class="ghost" data-use-location type="button"><span class="local-icon" data-icon="map"></span>使用当前位置</button>
+              </div>
+              <p class="location-status" data-location-status>定位只用于匹配附近商圈，不会上传。</p>
+              <div class="quick-areas" aria-label="快捷地点">
+                <button type="button" data-area-chip="世豪">世豪</button>
+                <button type="button" data-area-chip="银泰城">银泰城</button>
+                <button type="button" data-area-chip="港汇中心">港汇中心</button>
+                <button type="button" data-area-chip="保利锦江里">保利锦江里</button>
+                <button type="button" data-area-chip="融创">融创</button>
+                <button type="button" data-area-chip="重大虎溪菊园">虎溪菊园</button>
+                <button type="button" data-area-chip="重大虎溪东门">虎溪东门</button>
+                <button type="button" data-area-chip="大学城熙街">大学城熙街</button>
+                <button type="button" data-area-chip="龙湖U城">龙湖U城</button>
+              </div>
+            </div>
+
+            <form class="add-restaurant" data-add-restaurant>
+              <div class="form-head">
+                <strong>自己加一家</strong>
+                <span data-custom-status></span>
+              </div>
+              <div class="form-grid">
+                <input data-custom-name required placeholder="店名">
+                <input data-custom-area required placeholder="位置/商圈">
+                <select data-custom-category aria-label="分类">
+                  <option value="hotpot">火锅串串</option>
+                  <option value="sichuan">川菜江湖菜</option>
+                  <option value="noodles">面饭小吃</option>
+                  <option value="bbq">烧烤烤肉</option>
+                  <option value="light">轻食简餐</option>
+                  <option value="asian">亚洲风味</option>
+                  <option value="dessert">咖啡甜品</option>
+                </select>
+                <input data-custom-type placeholder="类型，如火锅/面馆">
+                <input data-custom-price type="number" min="1" step="1" placeholder="人均">
+                <input data-custom-tags placeholder="标签，用逗号分隔">
+              </div>
+              <button class="ghost" type="submit"><span class="local-icon" data-icon="check"></span>加入候选</button>
+            </form>
+          </div>
+
+          <div class="candidate-list" data-candidates></div>
+
+          <div class="passed-box">
+            <p><span class="local-icon" data-icon="archive"></span>已 pass，可点回收</p>
+            <div data-passed></div>
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
